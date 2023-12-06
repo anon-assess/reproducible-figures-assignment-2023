@@ -1,0 +1,238 @@
+---
+title: "assignment_reproducible_figures"
+output: 
+pdf_document: default
+date: "2023-12-05"
+---
+
+*The following is a template .rmd RMarkdown file for you to use for your homework submission.*
+
+*Please Knit your .rmd to a PDF format or HTML and submit that with no identifiers like your name.*
+
+*To create a PDF, first install tinytex and load the package. Then press the Knit arrow and select "Knit to PDF".*
+
+## QUESTION 01: Data Visualisation for Science Communication
+
+*Create a figure using the Palmer Penguin dataset that is correct but badly communicates the data. **Do not make a boxplot**.*
+```{r message=FALSE, include=FALSE}
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+
+install.packages(c("tinytex", "ggplot2", "palmerpenguins", "janitor", "dplyr","ggsignif"))
+
+# Load the packages:
+library(tinytex)
+library(ggplot2)
+library(palmerpenguins)
+library(janitor)
+library(dplyr)
+library(ggsignif)
+
+
+```
+
+
+
+### a) Provide your figure here:
+
+```{r bad figure code, echo=FALSE, warning=FALSE}
+
+ggplot(data=penguins,
+       aes(x=body_mass_g,
+           y=flipper_length_mm))+
+  geom_point(size = 3, colour = "skyblue")+
+  labs(title="Body mass is positively correlated with flipper length", y= "Flipper length (mm)", x="Body mass (g)")+
+  theme_dark()
+```
+
+
+### b) Write about how your design choices mislead the reader about the underlying data (200-300 words).
+This is misleading because it doesn't highlight that different species are in the dataset. This is a problem because whilst the combined data for the body mass and flipper lengths of all 3 species suggests there is a strong trend between these two variables, trends within each species may differ. This is therefore misleading as it suggests there is a really strong trend between these two variables in all penguins, when the extent to which this is true may vary in the different species for whom we have data. The data points in the graph are also misleading as they are too large, which means independent data points are not necessarily visible.Consequently, this badly communicates the data, as the scatter graphs formatting is itself causng some of the data to be obscured. Finally the dark theme makes it difficult to see the grid highlighting where different values are across the graph, making it even more difficult to identify the value of data points throughout the scatterplot. The values on the axes also do not start from 0, and this is not made clear by the presense of a break in the data, which could potentially mislead individuals who do not study the graph carefully, as just from quick observation this may suggest there is a stronger link between body mass and flipper length than there actually is.
+
+References:
+-   [*https://www.nature.com/articles/533452a*](https://www.nature.com/articles/533452a){.uri}
+-   [*https://elifesciences.org/articles/16800*](https://elifesciences.org/articles/16800){.uri}
+
+------------------------------------------------------------------------
+
+## QUESTION 2: Data Pipeline
+
+
+```{r Loading the Data, message=FALSE, include=FALSE}
+head(penguins_raw)
+
+```
+
+```{r Appropriately cleaning data, message=FALSE, include=FALSE}
+#Saving raw data before cleaning it
+write.csv(penguins_raw, "data/penguins_raw.csv")
+
+source("functions/cleaning.r")
+
+#Cleaning the data names
+penguins_clean <- penguins_raw %>%
+    clean_column_names() %>%
+    shorten_species() %>%
+    remove_empty_columns_rows()
+
+penguins_clean
+write.csv(penguins_clean, "data/penguins_clean.csv")
+
+#Subsetting only the species and columns I am interested in, in a pipe
+adelie_only <- penguins_clean %>%
+  filter_by_species("Adelie") %>%
+  subset_columns(c("species", "island", "body_mass_g")) %>%
+  remove_NA()
+write.csv(adelie_only, "data/adelie_only.csv")
+head(adelie_only)
+tail(adelie_only)
+```
+
+
+
+### Introduction
+
+ In this assignment, I will be testing data from the "penguins" dataset to see if there is a relationship between the island that Adelie penguins inhabit, and their body mass in grams. This is an interesting question to ask as the presense of significantly different mean body masses between different islands in penghuins of the same species suggests that factors on the islands rthemselves may be having a direct effect on penguin body mass. For example, if penguins on one island have a particularly low body mass it suggests perhaps the island may not have fewer resources available per bird, and therefore they do not reach higher masses. This could have important implications for conservation as penguins have lower survival rates if they do not have sufficient body mass, and therefore if penguins were underweight on one island in particular, further research could be done to identify the feature of the island causing this difference in body mass, and then action could be taken to prevent this. 
+In this assignment I am testing the hypothesis that Adelie penguin mean body mass is correlated with the island on which penguins are found.
+
+
+### Hypotheses
+
+Null = There is no significant effect of island penguins reside on, on their mean body mass (g)
+Alternate = There is a significant effect of island penguins reside on, on their mean body mass (g)
+
+
+Is there a relationship between the island Adelie penguins are found on and their bodymass?
+
+```{r Creating Exploratory Figure}
+#Plotting a bargraph comparing the mean body mass of Adelie Penguins on each of the 3 islands
+source("functions/plotting.r")
+exploratory_island_mass_plot <- plot_adelie_figure_exploratory(adelie_only)
+exploratory_island_mass_plot
+```
+
+
+### Analysis of Exploratory Plot
+
+Initially it doesn't look like there is any sort of effect of island penguins are found on and their mean body mass (g). We will however go on to test these relationships to confirm if there is any statistical significance of island on which adelie penguins are found and their body mass.
+
+```{r Saving Figure, message=FALSE, include=FALSE}
+ggsave("figures/fig01_adelie_exploratory_vector.svg", plot = exploratory_island_mass_plot, width = 6, height = 4)
+```
+
+
+### Statistical Method
+
+I am going to run an ANOVA test which will test to see if there is a significant difference between the mean body mass (g) of Adelie penguins on each of the three islands.
+
+```{r Testing Assumptions, warning=FALSE}
+#Testing if body mass is normally distributed so we can perform ANOVA test on it, as normally distributed data is an assumption of ANOVA tests
+qqnorm(adelie_only$body_mass_g)
+qqline(adelie_only$body_mass_g)
+
+```
+
+
+Data points generally fall on the line and so we can accept ANOVAs assumption of normality in regards to body mass data.
+
+### Results and Discussion
+
+#### Fitting Linear Model
+
+```{r Fitting linear model}
+#First we fit a linear model to test if mean body mass differs between islands
+mass_island_model<-lm(body_mass_g ~ island, adelie_only)
+
+summary(mass_island_model)
+```
+Here intercept represents Biscoe island. The intercepts estimate shows us the mean body mass in Adelie penguins on Biscoe island. The values beneath it show how different the means of body mass were on Dream and Torgersen compared to the mean on Biscoe island. From this we can see that the mean body mass of penguins on Dream island was 21g lower than those on Biscoe. Penguins on Torgersen were only 3g lighter on average than those on Biscoe.
+The R-squared value shows how much of the variation in body mass can be explained by the penguins being on different islands: as the value is very low (0.0004329) it suggests the model (that body mass may correlate with the island the penguin inhabits), only explains 0.04% of this variation, suggesting there is no significant effect of island on Adelie body mass.
+Overall this suggests the island adelie penguins inhabit doesnt have any significant effect on their body mass.
+
+#### ANOVA
+We can then run an ANOVA to test the linear model we made to see if there is any significant effect of island on adelie body mass
+```{r ANOVA}
+anova_result<-anova(mass_island_model)
+anova_result
+```
+The p-value here is very large, and therefore we accept our null hypothesis that there is no statistically significant effect of island adelie penguins reside on, on mean body mass. As the overall p-value of the ANOVA was not statistically significant, I do not need to perform a posthoc test to compare between the groups as ANOVA revealed there is not a significant difference between the means of any of the groups.
+
+#### Tukey test
+
+We can further see how significant the difference between the body mass means on each island were using the Tukey test:
+```{r Tukey test}
+tukey_result <- TukeyHSD(aov(mass_island_model))
+tukey_result
+```
+This shows us the p-values for the comparisons of the mean body mass on each combination of islands. These were all relatively similar and definitely not significant.
+
+```{r Preparing to Plot, message=FALSE, include=FALSE}
+#Merging p values to data frame used to plot graph so I can plot stats results on the bar graph
+p_values <- summary(mass_island_model)$coefficients[, "Pr(>|t|)"]
+
+# Create a data frame with islands and p-values
+p_values_df <- data.frame(
+  island = c("Biscoe", "Dream", "Torgersen"),
+  p_value = p_values)
+
+# Merge with the existing data frame
+adelie_with_pvalues <- merge(adelie_only, p_values_df, by = "island")
+write.csv(adelie_with_pvalues, "data/adelie_with_pvalues.csv")
+
+```
+
+### Plotting Results
+
+```{r Plotting Results}
+#Plot
+source("functions/plotting.r")
+results_plot <-plot_adelie_figure_results(adelie_with_pvalues)
+  
+print(results_plot)
+```
+
+```{r Saving figure, echo=FALSE, message=FALSE}
+ggsave("figures/fig02_adelie_results_vector.svg", plot = results_plot, width = 6, height = 4)
+```
+
+
+
+### Discussion
+
+The statistical analyses I performed (linear model and ANOVA on this linear model) have shown there is no significant effect of island which Adelie penguins are from and their mean body mass in grams. The initial exploratory plot suggested this may be the case, because of how similar the mean body masses of penguins were on all three islands. When standard error bars were added to the barplot this null hypothesis was further supported due to the overlap of the error bars seen in Figure 2. This was statistically confirmed by our linear model and ANOVA test. The p-values extracted from the linear model are useful as they highlight how statistically significant the differences in mean body mass between both Dream (p=0.819) and Torgersen (p=0.972) island penguins and those on Briscoe were. The mean body mass of penguins on Briscoe was used as a baseline to compare the penguins on other islands in this model. Performing an ANOVA on this model further highlighted that there was no statistical significance between these variables as it had a p-value of 0.969. As this was much greater than 0.05, the p-value required to reject the null hypothesis, we fail to reject the null with confidence.There is no significant effect of island penguins reside on, on their mean body mass (g). 
+
+### Conclusion
+
+Overall, we can conclude that the island which Adelie penguins are from does not have a significant effect on their mean body mass, when looking at the data from the three islands Briscoe, Dream, and Torgersen. The results of an ANOVA test performed on a linear model of the relationship between island and mean body mass highlighted this, producing a p-value of 0.969. In this assignment I fail to reject the null hypothesis that there is no significant effect of the island that penguins reside on and their mean body mass, according to the data in the "penguins" dataset provided.
+
+
+## QUESTION 3: Open Science
+
+### a) GitHub
+
+*Upload your RProject you created for **Question 2** and any files and subfolders used to GitHub. Do not include any identifiers such as your name. Make sure your GitHub repo is public.*
+
+*GitHub link:*
+
+*You will be marked on your repo organisation and readability.*
+
+### b) Share your repo with a partner, download, and try to run their data pipeline.
+
+*Partner's GitHub link:*
+
+*You **must** provide this so I can verify there is no plagiarism between you and your partner.*
+
+### c) Reflect on your experience running their code. (300-500 words)
+
+-   *What elements of your partner's code helped you to understand their data pipeline?*
+
+-   *Did it run? Did you need to fix anything?*
+
+-   *What suggestions would you make for improving their code to make it more understandable or reproducible, and why?*
+
+-   *If you needed to alter your partner's figure using their code, do you think that would be easy or difficult, and why?*
+
+### d) Reflect on your own code based on your experience with your partner's code and their review of yours. (300-500 words)
+
+-   *What improvements did they suggest, and do you agree?*
+
+-   *What did you learn about writing code for other people?*
